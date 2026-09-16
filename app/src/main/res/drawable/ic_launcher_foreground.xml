@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Unhooked peaceful icon: lotus/calm leaf outline inside protective shield -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,24 L34,33 V50 C34,64 42.6,76.8 54,84 C65.4,76.8 74,64 74,50 V33 L54,24 Z M54,39 C58.4,45 61,51 60.9,56.5 C60.8,60.6 57.8,64 54,64 C50.2,64 47.2,60.6 47.1,56.5 C47,51 49.6,45 54,39 Z"/>
+</vector>

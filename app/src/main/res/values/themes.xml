@@ -1,0 +1,13 @@
+<resources>
+    <style name="Theme.Unhooked" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/bg_light</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/bg_light</item>
+        <item name="android:windowBackground">@color/bg_light</item>
+    </style>
+
+    <style name="Theme.Unhooked.BlockActivity" parent="Theme.Unhooked">
+        <item name="android:windowBackground">@color/bg_light</item>
+        <item name="android:windowShowWallpaper">false</item>
+    </style>
+</resources>

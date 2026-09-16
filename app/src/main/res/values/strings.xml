@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Unhooked</string>
+    <string name="app_tagline">Reclaim your focus and intentionality</string>
+    <string name="accessibility_service_description">Unhooked uses this service solely to detect when a configured distracting app is launched so it can open your focus block screen. It CANNOT read screen content, passwords, or personal messages.</string>
+    <string name="device_admin_description">Unhooked Device Admin makes it harder to bypass active focus sessions by preventing casual uninstallation during Strict Mode.</string>
+    <string name="stay_focused">Stay focused.</string>
+    <string name="session_locked">This session is locked.</string>
+    <string name="go_home">Go Home</string>
+    <string name="take_a_breath">Take a deep breath. You chose to step away from distractions.</string>
+</resources>

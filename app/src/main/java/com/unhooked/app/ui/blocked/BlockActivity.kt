@@ -43,6 +43,7 @@ class BlockActivity : ComponentActivity() {
                     appName = appName,
                     reason = displayReason,
                     unlockTimeMs = unlockTime,
+                    isStrictMode = rawReason == "FOCUS_SESSION",
                     onGoHome = { goToHomeScreen() }
                 )
             }

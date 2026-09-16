@@ -23,6 +23,7 @@ sealed class Screen(
     // Additional sub-screens
     object Permissions : Screen("permissions", "Permissions Center")
     object AntiBypass : Screen("anti_bypass", "Anti-Bypass Protection", Icons.Rounded.Security)
+    object Onboarding : Screen("onboarding", "Welcome")
 
     companion object {
         val bottomNavItems = listOf(Home, Focus, Block, Insights, Settings)

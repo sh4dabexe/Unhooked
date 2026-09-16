@@ -166,7 +166,7 @@ class BlockViewModel(application: Application) : AndroidViewModel(application) {
 
             val matchesTab = when (tab) {
                 0 -> !app.isCritical // Controllable apps
-                2 -> app.isCritical || app.rule?.isWhitelisted == true // Whitelisted & Protected
+                3 -> app.isCritical || app.rule?.isWhitelisted == true // Whitelisted & Protected
                 else -> true
             }
 

@@ -109,11 +109,23 @@ fun BlockScreen(
 
         // Tab selection
         SegmentedPill(
-            options = listOf("Apps", "Schedules", "Protected Whitelist"),
+            options = listOf("Apps", "Websites", "Schedules", "Whitelist"),
             selectedIndex = uiState.selectedTab,
             onOptionSelected = { viewModel.setSelectedTab(it) },
             modifier = Modifier.fillMaxWidth()
         )
+
+        // Tab content
+        when (uiState.selectedTab) {
+            1 -> {
+                // Website blocker tab
+                WebsiteBlockContent()
+            }
+            2 -> {
+                // Schedule management tab
+                ScheduleContent()
+            }
+            else -> {
 
         // App list
         LazyColumn(
@@ -136,6 +148,8 @@ fun BlockScreen(
                 Spacer(modifier = Modifier.height(70.dp))
             }
         }
+        } // end else
+        } // end when
     }
 
     // Daily Limit Edit Dialog

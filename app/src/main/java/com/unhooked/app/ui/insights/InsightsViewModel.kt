@@ -21,7 +21,9 @@ data class InsightsUiState(
     val blockedAttemptsCount: Int = 24,
     val chartData: List<ChartBarData> = emptyList(),
     val topApps: List<AppUsageStat> = emptyList(),
-    val recentBlocks: List<BlockedAttemptModel> = emptyList()
+    val recentBlocks: List<BlockedAttemptModel> = emptyList(),
+    val streakDays: Int = 0,
+    val timeSavedMinutes: Int = 0
 )
 
 class InsightsViewModel(application: Application) : AndroidViewModel(application) {
@@ -35,9 +37,17 @@ class InsightsViewModel(application: Application) : AndroidViewModel(application
 
         viewModelScope.launch {
             repository.recentBlockedAttemptsFlow.collectLatest { list ->
+                // Estimate time saved: average 3 minutes per blocked attempt
+                val timeSaved = list.size * 3
+
+                // Calculate streak: count consecutive days with blocked attempts
+                val streakDays = calculateStreak(list)
+
                 _uiState.value = _uiState.value.copy(
                     recentBlocks = list.take(5),
-                    blockedAttemptsCount = list.size
+                    blockedAttemptsCount = list.size,
+                    timeSavedMinutes = timeSaved,
+                    streakDays = streakDays
                 )
             }
         }
@@ -45,6 +55,30 @@ class InsightsViewModel(application: Application) : AndroidViewModel(application
 
     fun setSelectedTab(index: Int) {
         _uiState.value = _uiState.value.copy(selectedTab = index)
+    }
+
+    private fun calculateStreak(attempts: List<BlockedAttemptModel>): Int {
+        if (attempts.isEmpty()) return 0
+
+        val calendar = java.util.Calendar.getInstance()
+        val daysWithActivity = attempts.map { attempt ->
+            calendar.timeInMillis = attempt.timestamp
+            val year = calendar.get(java.util.Calendar.YEAR)
+            val dayOfYear = calendar.get(java.util.Calendar.DAY_OF_YEAR)
+            year * 366 + dayOfYear
+        }.toSet().sorted().reversed()
+
+        if (daysWithActivity.isEmpty()) return 0
+
+        var streak = 1
+        for (i in 1 until daysWithActivity.size) {
+            if (daysWithActivity[i - 1] - daysWithActivity[i] == 1) {
+                streak++
+            } else {
+                break
+            }
+        }
+        return streak
     }
 
     private fun loadData() {

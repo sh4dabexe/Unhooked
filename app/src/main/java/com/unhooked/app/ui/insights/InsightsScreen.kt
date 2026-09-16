@@ -19,7 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.HourglassTop
 import androidx.compose.material.icons.rounded.Shield
-import androidx.compose.material.icons.rounded.TrendingUp
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -118,6 +118,32 @@ fun InsightsScreen(
             }
         }
 
+        // Streak & Time Saved Row
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                PastelStatCard(
+                    modifier = Modifier.weight(1f),
+                    title = "🔥 Streak",
+                    subtitle = "Consecutive days",
+                    value = "${uiState.streakDays} days",
+                    icon = Icons.Rounded.HourglassTop,
+                    iconBgColor = PastelYellow
+                )
+
+                PastelStatCard(
+                    modifier = Modifier.weight(1f),
+                    title = "Time Saved",
+                    subtitle = "From blocked apps",
+                    value = "${uiState.timeSavedMinutes} min",
+                    icon = Icons.AutoMirrored.Rounded.TrendingUp,
+                    iconBgColor = PastelGreen
+                )
+            }
+        }
+
         // 2 Stat cards
         item {
             Row(
@@ -126,11 +152,11 @@ fun InsightsScreen(
             ) {
                 PastelStatCard(
                     modifier = Modifier.weight(1f),
-                    title = "Time Saved",
-                    subtitle = "From blocked apps",
-                    value = "${uiState.blockedAttemptsCount * 6} min",
-                    icon = Icons.Rounded.TrendingUp,
-                    iconBgColor = PastelGreen
+                    title = "Focus Time",
+                    subtitle = "Productive work",
+                    value = "${uiState.totalFocusTimeMinutes} min",
+                    icon = Icons.Rounded.HourglassTop,
+                    iconBgColor = PastelCyan
                 )
 
                 PastelStatCard(

@@ -18,6 +18,9 @@ class UnhookedApp : Application() {
         var repository: UnhookedRepository? = null
             private set
 
+        var database: AppDatabase? = null
+            private set
+
         const val CHANNEL_FOCUS_ID = "unhooked_focus_channel"
         const val CHANNEL_ALERTS_ID = "unhooked_alerts_channel"
     }
@@ -28,6 +31,7 @@ class UnhookedApp : Application() {
 
         val db = AppDatabase.getInstance(this)
         val prefs = UserPreferencesDataStore(this)
+        database = db
         repository = UnhookedRepository(db, prefs)
 
         createNotificationChannels()

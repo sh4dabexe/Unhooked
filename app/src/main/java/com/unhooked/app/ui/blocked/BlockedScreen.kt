@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,13 +15,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -68,8 +72,11 @@ fun BlockedScreen(
     appName: String,
     reason: String,
     unlockTimeMs: Long,
-    isStrictMode: Boolean = false,
-    onGoHome: () -> Unit
+    isAdminMode: Boolean = false,
+    scheduleId: Long = 0L,
+    onGoHome: () -> Unit,
+    onScanQr: () -> Unit = {},
+    onEnterPassphrase: () -> Unit = {}
 ) {
     val unlockTimeStr = if (unlockTimeMs > 0) {
         SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(unlockTimeMs))
@@ -125,13 +132,13 @@ fun BlockedScreen(
                 modifier = Modifier
                     .size(68.dp)
                     .background(
-                        if (isStrictMode) PastelCoral else PastelPurple,
+                        if (isAdminMode) PastelCoral else PastelPurple,
                         shape = IconBoxShape
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (isStrictMode) Icons.Rounded.Lock else Icons.Rounded.Block,
+                    imageVector = if (isAdminMode) Icons.Rounded.Lock else Icons.Rounded.Block,
                     contentDescription = "Unhooked Block",
                     tint = Color(0xFF1F1A24),
                     modifier = Modifier.size(36.dp)
@@ -141,7 +148,7 @@ fun BlockedScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = if (isStrictMode) "This Session is Locked." else "Stay Focused.",
+                text = if (isAdminMode) "Admin Mode Locked." else "Stay Focused.",
                 style = MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center
@@ -224,7 +231,7 @@ fun BlockedScreen(
                     )
                 }
 
-                if (isStrictMode) {
+                if (isAdminMode) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Box(
                         modifier = Modifier
@@ -233,7 +240,7 @@ fun BlockedScreen(
                             .padding(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = "🔒 Strict Mode Active",
+                            text = "🔐 Admin Mode — Locked",
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.error
                         )
@@ -242,11 +249,56 @@ fun BlockedScreen(
             }
         }
 
-        // Bottom Safe Navigation Button
+        // Bottom buttons
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // Admin-mode emergency unlock buttons
+            if (isAdminMode && scheduleId > 0L) {
+                OutlinedButton(
+                    onClick = onScanQr,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = PillShape
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.QrCodeScanner,
+                        contentDescription = "Scan QR",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Scan QR Code to Unlock",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onEnterPassphrase,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = PillShape
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Key,
+                        contentDescription = "Passphrase",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Enter Passphrase to Unlock",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+
+            // Home button
             Button(
                 onClick = onGoHome,
                 modifier = Modifier

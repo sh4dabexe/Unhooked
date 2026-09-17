@@ -8,10 +8,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.unhooked.app.UnhookedApp
 import com.unhooked.app.ui.block.BlockScreen
 import com.unhooked.app.ui.focus.FocusScreen
@@ -20,6 +22,8 @@ import com.unhooked.app.ui.insights.InsightsScreen
 import com.unhooked.app.ui.onboarding.OnboardingScreen
 import com.unhooked.app.ui.permissions.PermissionsScreen
 import com.unhooked.app.ui.settings.AntiBypassScreen
+import com.unhooked.app.ui.settings.PassphraseEntryScreen
+import com.unhooked.app.ui.settings.QrScannerScreen
 import com.unhooked.app.ui.settings.SettingsScreen
 import kotlinx.coroutines.launch
 
@@ -110,6 +114,40 @@ fun MainNavHost(
 
             composable(Screen.AntiBypass.route) {
                 AntiBypassScreen()
+            }
+
+            // Emergency unlock: QR Scanner
+            composable(
+                route = Screen.QrScanner.route,
+                arguments = listOf(navArgument("scheduleId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                val scheduleId = backStackEntry.arguments?.getLong("scheduleId") ?: 0L
+                QrScannerScreen(
+                    scheduleId = scheduleId,
+                    onUnlockSuccess = {
+                        navController.popBackStack()
+                    },
+                    onBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            // Emergency unlock: Passphrase Entry
+            composable(
+                route = Screen.PassphraseEntry.route,
+                arguments = listOf(navArgument("scheduleId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                val scheduleId = backStackEntry.arguments?.getLong("scheduleId") ?: 0L
+                PassphraseEntryScreen(
+                    scheduleId = scheduleId,
+                    onUnlockSuccess = {
+                        navController.popBackStack()
+                    },
+                    onBack = {
+                        navController.popBackStack()
+                    }
+                )
             }
         }
     }

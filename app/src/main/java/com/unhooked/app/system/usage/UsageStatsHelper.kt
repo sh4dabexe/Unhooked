@@ -89,4 +89,33 @@ object UsageStatsHelper {
                 )
             }
     }
+
+    /**
+     * Queries foreground usage aggregated over the past 7 days.
+     */
+    fun getWeeklyUsageStats(context: Context): Map<String, Long> {
+        if (!hasUsageAccess(context)) return emptyMap()
+
+        val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            ?: return emptyMap()
+
+        val now = System.currentTimeMillis()
+        val weekAgo = now - 7 * 86_400_000L
+
+        val statsList: List<UsageStats> = usageStatsManager.queryUsageStats(
+            UsageStatsManager.INTERVAL_DAILY,
+            weekAgo,
+            now
+        ) ?: emptyList()
+
+        val usageMap = mutableMapOf<String, Long>()
+        for (stat in statsList) {
+            val pkg = stat.packageName ?: continue
+            val time = stat.totalTimeInForeground
+            if (time > 0) {
+                usageMap[pkg] = (usageMap[pkg] ?: 0L) + time
+            }
+        }
+        return usageMap
+    }
 }

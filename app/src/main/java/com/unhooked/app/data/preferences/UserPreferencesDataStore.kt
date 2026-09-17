@@ -23,7 +23,6 @@ class UserPreferencesDataStore(private val context: Context) {
         val KEY_PROTECTION_MODE = stringPreferencesKey("protection_mode")
         val KEY_PASSWORD_HASH = stringPreferencesKey("password_hash")
         val KEY_PASSWORD_SALT = stringPreferencesKey("password_salt")
-        val KEY_STRICT_UNTIL_MS = longPreferencesKey("strict_until_ms")
         val KEY_OVERALL_LIMIT_MIN = intPreferencesKey("overall_daily_limit_min")
         val KEY_DARK_MODE = booleanPreferencesKey("dark_mode")
     }
@@ -43,10 +42,6 @@ class UserPreferencesDataStore(private val context: Context) {
         } catch (e: Exception) {
             ProtectionMode.NORMAL
         }
-    }
-
-    val strictUntilMsFlow: Flow<Long> = context.dataStore.data.map { prefs ->
-        prefs[KEY_STRICT_UNTIL_MS] ?: 0L
     }
 
     val overallLimitMinFlow: Flow<Int> = context.dataStore.data.map { prefs ->
@@ -86,10 +81,6 @@ class UserPreferencesDataStore(private val context: Context) {
             }
         }
         return credentials
-    }
-
-    suspend fun setStrictUntilMs(untilMs: Long) {
-        context.dataStore.edit { it[KEY_STRICT_UNTIL_MS] = untilMs }
     }
 
     suspend fun setOverallLimitMin(minutes: Int) {

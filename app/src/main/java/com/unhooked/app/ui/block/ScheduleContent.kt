@@ -2,6 +2,8 @@ package com.unhooked.app.ui.block
 
 import android.app.Application
 import android.app.TimePickerDialog
+import android.graphics.Bitmap
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,7 +23,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AdminPanelSettings
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -45,6 +50,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,10 +63,17 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.unhooked.app.UnhookedApp
+import com.unhooked.app.domain.model.ProtectionMode
 import com.unhooked.app.domain.model.ScheduleModel
+import com.unhooked.app.domain.security.EmergencyUnlockManager
+import com.unhooked.app.domain.security.SecurityUtil
+import com.unhooked.app.domain.security.UnlockCredentials
+import com.unhooked.app.ui.settings.EmergencyUnlockScreen
 import com.unhooked.app.ui.theme.CardShape
 import com.unhooked.app.ui.theme.IconBoxShape
+import com.unhooked.app.ui.theme.PastelCoral
 import com.unhooked.app.ui.theme.PastelCyan
+import com.unhooked.app.ui.theme.PastelGreen
 import com.unhooked.app.ui.theme.PastelYellow
 import com.unhooked.app.ui.theme.PillShape
 import com.unhooked.app.ui.theme.PrimaryPurple
@@ -93,15 +106,62 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /**
+     * Save a schedule and generate emergency unlock credentials if Admin mode.
+     * Returns the schedule ID and credentials (if Admin).
+     */
+    suspend fun saveScheduleWithProtection(schedule: ScheduleModel): Pair<Long, UnlockCredentials?> {
+        val id = repository.saveSchedule(schedule)
+        var credentials: UnlockCredentials? = null
+        if (schedule.protectionMode == ProtectionMode.ADMIN) {
+            credentials = repository.emergencyUnlockManager.generateUnlockCredentials(id)
+        }
+        return Pair(id, credentials)
+    }
+
     fun deleteSchedule(schedule: ScheduleModel) {
         viewModelScope.launch {
             repository.deleteSchedule(schedule)
         }
     }
 
+    /**
+     * Delete with authentication check: Admin blocks cannot be deleted, Password blocks need PIN.
+     */
+    fun deleteScheduleWithAuth(
+        schedule: ScheduleModel,
+        pin: String? = null,
+        onError: (String) -> Unit
+    ) {
+        when (schedule.protectionMode) {
+            ProtectionMode.ADMIN -> {
+                onError("Admin-mode blocks cannot be deleted. Use QR or passphrase to unlock first.")
+            }
+            ProtectionMode.PASSWORD -> {
+                if (pin.isNullOrBlank()) {
+                    onError("PIN required to delete this block.")
+                    return
+                }
+                if (!SecurityUtil.verifyPassword(pin, schedule.pinHash, schedule.pinSalt)) {
+                    onError("Incorrect PIN.")
+                    return
+                }
+                deleteSchedule(schedule)
+            }
+            ProtectionMode.NORMAL -> {
+                deleteSchedule(schedule)
+            }
+        }
+    }
+
     fun toggleSchedule(schedule: ScheduleModel) {
-        viewModelScope.launch {
-            repository.saveSchedule(schedule.copy(enabled = !schedule.enabled))
+        when (schedule.protectionMode) {
+            ProtectionMode.ADMIN -> return // Cannot toggle admin blocks
+            else -> {
+                viewModelScope.launch {
+                    repository.saveSchedule(schedule.copy(enabled = !schedule.enabled))
+                }
+            }
         }
     }
 }
@@ -113,7 +173,14 @@ fun ScheduleContent(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showPinDialog by remember { mutableStateOf<ScheduleModel?>(null) }
+
+    // Emergency unlock reveal state
+    var showEmergencyReveal by remember { mutableStateOf(false) }
+    var emergencyCredentials by remember { mutableStateOf<UnlockCredentials?>(null) }
+
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -160,7 +227,21 @@ fun ScheduleContent(
                 ScheduleCard(
                     schedule = schedule,
                     onToggle = { viewModel.toggleSchedule(schedule) },
-                    onDelete = { viewModel.deleteSchedule(schedule) }
+                    onDelete = {
+                        when (schedule.protectionMode) {
+                            ProtectionMode.ADMIN -> {
+                                Toast.makeText(context,
+                                    "Admin-mode blocks cannot be deleted. Use QR/passphrase to unlock first.",
+                                    Toast.LENGTH_LONG).show()
+                            }
+                            ProtectionMode.PASSWORD -> {
+                                showPinDialog = schedule
+                            }
+                            ProtectionMode.NORMAL -> {
+                                viewModel.deleteSchedule(schedule)
+                            }
+                        }
+                    }
                 )
             }
 
@@ -174,8 +255,69 @@ fun ScheduleContent(
         CreateScheduleDialog(
             onDismiss = { showCreateDialog = false },
             onSave = { schedule ->
-                viewModel.saveSchedule(schedule)
-                showCreateDialog = false
+                scope.launch {
+                    val (id, credentials) = viewModel.saveScheduleWithProtection(schedule)
+                    showCreateDialog = false
+                    if (credentials != null) {
+                        emergencyCredentials = credentials
+                        showEmergencyReveal = true
+                    }
+                }
+            }
+        )
+    }
+
+    // PIN verification dialog for Password-mode deletion
+    if (showPinDialog != null) {
+        var pinInput by remember { mutableStateOf("") }
+        var pinError by remember { mutableStateOf("") }
+
+        AlertDialog(
+            onDismissRequest = { showPinDialog = null },
+            title = { Text("Enter PIN to Delete") },
+            text = {
+                Column {
+                    Text("This block is password-protected. Enter the PIN to delete it.")
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = pinInput,
+                        onValueChange = { pinInput = it; pinError = "" },
+                        placeholder = { Text("Enter PIN") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (pinError.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(pinError, color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteScheduleWithAuth(showPinDialog!!, pinInput) { error ->
+                            pinError = error
+                        }
+                        if (pinError.isEmpty()) showPinDialog = null
+                    },
+                    shape = PillShape
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPinDialog = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Emergency unlock reveal (full-screen overlay)
+    if (showEmergencyReveal && emergencyCredentials != null) {
+        EmergencyUnlockScreen(
+            qrBitmap = emergencyCredentials!!.qrBitmap,
+            passphrase = emergencyCredentials!!.passphrase,
+            onConfirmed = {
+                showEmergencyReveal = false
+                emergencyCredentials = null
             }
         )
     }
@@ -194,6 +336,8 @@ fun ScheduleCard(
         schedule.startHour, schedule.startMinute,
         schedule.endHour, schedule.endMinute
     )
+
+    val isAdminLocked = schedule.protectionMode == ProtectionMode.ADMIN
 
     Card(
         shape = CardShape,
@@ -216,13 +360,21 @@ fun ScheduleCard(
                     modifier = Modifier
                         .size(44.dp)
                         .background(
-                            if (schedule.enabled) PastelCyan else MaterialTheme.colorScheme.surfaceVariant,
+                            when (schedule.protectionMode) {
+                                ProtectionMode.ADMIN -> PastelCoral
+                                ProtectionMode.PASSWORD -> PastelYellow
+                                else -> if (schedule.enabled) PastelCyan else MaterialTheme.colorScheme.surfaceVariant
+                            },
                             shape = IconBoxShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Schedule,
+                        imageVector = when (schedule.protectionMode) {
+                            ProtectionMode.ADMIN -> Icons.Rounded.AdminPanelSettings
+                            ProtectionMode.PASSWORD -> Icons.Rounded.Lock
+                            else -> Icons.Rounded.Schedule
+                        },
                         contentDescription = "Schedule",
                         tint = Color(0xFF1F1A24),
                         modifier = Modifier.size(22.dp)
@@ -232,11 +384,20 @@ fun ScheduleCard(
                 Spacer(modifier = Modifier.width(14.dp))
 
                 Column {
-                    Text(
-                        text = schedule.name,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = schedule.name,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (schedule.protectionMode != ProtectionMode.NORMAL) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isAdminLocked) "🔐" else "🔒",
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
                     Text(
                         text = timeText,
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
@@ -251,21 +412,25 @@ fun ScheduleCard(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(
-                    checked = schedule.enabled,
-                    onCheckedChange = { onToggle() },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = PrimaryPurple
+                if (!isAdminLocked) {
+                    Switch(
+                        checked = schedule.enabled,
+                        onCheckedChange = { onToggle() },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = PrimaryPurple
+                        )
                     )
-                )
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        Icons.Rounded.Delete,
-                        contentDescription = "Delete",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
+                }
+                if (!isAdminLocked) {
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            Icons.Rounded.Delete,
+                            contentDescription = "Delete",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
@@ -284,9 +449,16 @@ fun CreateScheduleDialog(
     var endHour by remember { mutableIntStateOf(17) }
     var endMinute by remember { mutableIntStateOf(0) }
     val selectedDays = remember { mutableStateListOf(2, 3, 4, 5, 6) } // Mon–Fri
+    var selectedMode by remember { mutableStateOf(ProtectionMode.NORMAL) }
+    var pinInput by remember { mutableStateOf("") }
     val context = LocalContext.current
 
     val dayLabels = listOf("Sun" to 1, "Mon" to 2, "Tue" to 3, "Wed" to 4, "Thu" to 5, "Fri" to 6, "Sat" to 7)
+    val modeLabels = listOf(
+        ProtectionMode.NORMAL to "Normal",
+        ProtectionMode.PASSWORD to "Password",
+        ProtectionMode.ADMIN to "Admin"
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -375,12 +547,86 @@ fun CreateScheduleDialog(
                         )
                     }
                 }
+
+                // Protection Mode selector
+                Text("Protection Mode", style = MaterialTheme.typography.labelMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    modeLabels.forEach { (mode, label) ->
+                        FilterChip(
+                            selected = selectedMode == mode,
+                            onClick = { selectedMode = mode },
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = when (mode) {
+                                            ProtectionMode.ADMIN -> Icons.Rounded.AdminPanelSettings
+                                            ProtectionMode.PASSWORD -> Icons.Rounded.Lock
+                                            else -> Icons.Rounded.LockOpen
+                                        },
+                                        contentDescription = label,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(label, fontSize = 12.sp)
+                                }
+                            },
+                            shape = PillShape,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = when (mode) {
+                                    ProtectionMode.ADMIN -> PastelCoral
+                                    ProtectionMode.PASSWORD -> PastelYellow
+                                    else -> PastelGreen
+                                },
+                                selectedLabelColor = Color(0xFF1F1A24)
+                            )
+                        )
+                    }
+                }
+
+                // PIN input for Password mode
+                if (selectedMode == ProtectionMode.PASSWORD) {
+                    OutlinedTextField(
+                        value = pinInput,
+                        onValueChange = { pinInput = it },
+                        label = { Text("Set PIN (6+ digits)") },
+                        placeholder = { Text("Enter PIN") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // Admin mode warning
+                if (selectedMode == ProtectionMode.ADMIN) {
+                    Card(
+                        shape = CardShape,
+                        colors = CardDefaults.cardColors(
+                            containerColor = PastelCoral.copy(alpha = 0.2f)
+                        )
+                    ) {
+                        Text(
+                            text = "⚠️ Admin mode will lock this schedule. You'll receive a QR code and passphrase for emergency unlock.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
                     if (name.isNotBlank() && selectedDays.isNotEmpty()) {
+                        val pinHash: String
+                        val pinSalt: String
+                        if (selectedMode == ProtectionMode.PASSWORD && pinInput.isNotBlank()) {
+                            pinSalt = SecurityUtil.generateSalt()
+                            pinHash = SecurityUtil.hashPassword(pinInput, pinSalt)
+                        } else {
+                            pinHash = ""
+                            pinSalt = ""
+                        }
+
                         onSave(
                             ScheduleModel(
                                 name = name,
@@ -390,7 +636,10 @@ fun CreateScheduleDialog(
                                 endMinute = endMinute,
                                 daysOfWeek = selectedDays.sorted(),
                                 targetPackages = emptyList(), // Applies to all blocked apps
-                                enabled = true
+                                enabled = true,
+                                protectionMode = selectedMode,
+                                pinHash = pinHash,
+                                pinSalt = pinSalt
                             )
                         )
                     }

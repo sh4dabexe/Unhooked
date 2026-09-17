@@ -160,12 +160,16 @@ fun PermissionsScreen(
                                             )
                                             putExtra(
                                                 DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                                                "Unhooked Device Admin prevents bypassing focus sessions by uninstalling the app."
+                                                "Admin Protection prevents bypassing focus rules by uninstalling Unhooked."
                                             )
                                         }
                                     } else if (item.id == "notifications" && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                                         Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
                                             putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                        }
+                                    } else if (item.id == "overlay") {
+                                        Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                                            data = Uri.fromParts("package", context.packageName, null)
                                         }
                                     } else {
                                         Intent(item.intentAction)

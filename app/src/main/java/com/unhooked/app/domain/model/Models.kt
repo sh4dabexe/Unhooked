@@ -3,8 +3,7 @@ package com.unhooked.app.domain.model
 enum class ProtectionMode {
     NORMAL,
     PASSWORD,
-    ADMIN,
-    STRICT
+    ADMIN
 }
 
 enum class TimerType {
@@ -57,7 +56,10 @@ data class ScheduleModel(
     val endMinute: Int,
     val daysOfWeek: List<Int>, // 1 = Sunday, 2 = Monday, ..., 7 = Saturday
     val targetPackages: List<String>,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val protectionMode: ProtectionMode = ProtectionMode.NORMAL,
+    val pinHash: String = "",
+    val pinSalt: String = ""
 )
 
 data class FocusSessionModel(

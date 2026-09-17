@@ -5,7 +5,6 @@ import android.app.Application
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
@@ -46,6 +45,7 @@ class PermissionViewModel(application: Application) : AndroidViewModel(applicati
 
         val hasUsage = UsageStatsHelper.hasUsageAccess(context)
         val hasAccessibility = isAccessibilityServiceEnabled(context)
+        val hasOverlay = Settings.canDrawOverlays(context)
         val hasNotifications = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(
                 context,
@@ -75,6 +75,14 @@ class PermissionViewModel(application: Application) : AndroidViewModel(applicati
                 intentAction = Settings.ACTION_ACCESSIBILITY_SETTINGS
             ),
             PermissionItem(
+                id = "overlay",
+                title = "Display Over Other Apps",
+                description = "Allows Unhooked to show critical alerts and permission reminders when needed.",
+                isGranted = hasOverlay,
+                isRequired = false,
+                intentAction = Settings.ACTION_MANAGE_OVERLAY_PERMISSION
+            ),
+            PermissionItem(
                 id = "notifications",
                 title = "Focus Notifications",
                 description = "Shows active timer progress and completion alerts.",
@@ -93,7 +101,7 @@ class PermissionViewModel(application: Application) : AndroidViewModel(applicati
             PermissionItem(
                 id = "device_admin",
                 title = "Admin Protection",
-                description = "Optional: Prevents casual uninstallation when Strict Mode is locked.",
+                description = "Optional: Prevents casual uninstallation when Admin Mode is locked.",
                 isGranted = hasDeviceAdmin,
                 isRequired = false,
                 intentAction = DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN

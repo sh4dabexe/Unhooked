@@ -16,11 +16,11 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 data class HomeUiState(
-    val userName: String = "Tanim",
-    val todayControlledMinutes: Int = 42,
+    val userName: String = "Friend",
+    val todayControlledMinutes: Int = 0,
     val overallLimitMinutes: Int = 180,
-    val todayFocusMinutes: Int = 55,
-    val todayBlockedAttempts: Int = 14,
+    val todayFocusMinutes: Int = 0,
+    val todayBlockedAttempts: Int = 0,
     val activeFocusSession: FocusSessionModel? = null,
     val topApps: List<AppUsageStat> = emptyList(),
     val hasUsagePermission: Boolean = false,
@@ -68,7 +68,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(hasUsagePermission = hasPermission)
 
         if (hasPermission) {
-            val usageStats = UsageStatsHelper.getTodayUsageStats(context)
+            val isWeekly = _uiState.value.selectedTimeframeIndex == 1
+            val usageStats = if (isWeekly) {
+                UsageStatsHelper.getWeeklyUsageStats(context)
+            } else {
+                UsageStatsHelper.getTodayUsageStats(context)
+            }
             val controlledMs = usageStats.filter { (pkg, _) ->
                 WhitelistHelper.isEligibleForBlocking(pkg)
             }.values.sum()
@@ -89,6 +94,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTimeframeIndex(index: Int) {
         _uiState.value = _uiState.value.copy(selectedTimeframeIndex = index)
+        refreshUsage() // Re-query with the new timeframe
     }
 
     fun setLayoutIndex(index: Int) {

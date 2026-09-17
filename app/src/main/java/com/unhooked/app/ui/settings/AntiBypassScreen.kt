@@ -1,5 +1,8 @@
 package com.unhooked.app.ui.settings
 
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,10 +22,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AdminPanelSettings
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Password
-import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -43,11 +44,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.unhooked.app.domain.model.ProtectionMode
+import com.unhooked.app.system.deviceadmin.UnhookedAdminReceiver
 import com.unhooked.app.ui.theme.CardShape
 import com.unhooked.app.ui.theme.IconBoxShape
 import com.unhooked.app.ui.theme.PastelCoral
@@ -63,8 +66,9 @@ fun AntiBypassScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showPasswordDialog by remember { mutableStateOf(false) }
-    var showStrictDialog by remember { mutableStateOf(false) }
+    var showAdminDialog by remember { mutableStateOf(false) }
     var inputPassword by remember { mutableStateOf("") }
+    val context = LocalContext.current
 
     LazyColumn(
         modifier = Modifier
@@ -119,28 +123,67 @@ fun AntiBypassScreen(
             )
         }
 
-        // Mode 3: Admin Protection
+        // Mode 3: Admin Protection (replaces both old Admin and Strict)
         item {
             ModeCard(
                 title = "Admin Protection",
-                subtitle = "Harder to remove • Uses Android Device Administrator to discourage uninstalling",
+                subtitle = "Unbreakable • Locks rules, prevents uninstall, requires QR/passphrase to exit",
                 icon = Icons.Rounded.AdminPanelSettings,
-                iconBg = PastelGreen,
+                iconBg = PastelCoral,
                 isSelected = uiState.protectionMode == ProtectionMode.ADMIN,
-                onClick = { viewModel.setProtectionMode(ProtectionMode.ADMIN) }
+                onClick = {
+                    if (!uiState.isDeviceAdminGranted) {
+                        // Prompt to enable Device Admin first
+                        val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                            putExtra(
+                                DevicePolicyManager.EXTRA_DEVICE_ADMIN,
+                                ComponentName(context, UnhookedAdminReceiver::class.java)
+                            )
+                            putExtra(
+                                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                                "Admin Protection prevents bypassing focus rules by uninstalling Unhooked. You'll need a QR code or passphrase to disable it."
+                            )
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        try {
+                            context.startActivity(intent)
+                        } catch (_: Exception) { }
+                    } else {
+                        showAdminDialog = true
+                    }
+                }
             )
         }
 
-        // Mode 4: Strict Mode
-        item {
-            ModeCard(
-                title = "Strict Mode",
-                subtitle = "Unbreakable commitment • Freezes rules until time expires. No in-app bypass.",
-                icon = Icons.Rounded.Lock,
-                iconBg = PastelCoral,
-                isSelected = uiState.protectionMode == ProtectionMode.STRICT || uiState.isStrictActive,
-                onClick = { showStrictDialog = true }
-            )
+        // Admin mode info banner
+        if (uiState.isAdminActive) {
+            item {
+                Card(
+                    shape = CardShape,
+                    colors = CardDefaults.cardColors(
+                        containerColor = PastelCoral.copy(alpha = 0.2f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = "🔐 Admin Mode Active",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "All active Admin-mode blocks are frozen. Use QR code or passphrase to unlock individual blocks.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
 
         item {
@@ -191,39 +234,48 @@ fun AntiBypassScreen(
         )
     }
 
-    // Strict Mode Commitment Dialog
-    if (showStrictDialog) {
+    // Admin Mode Confirmation Dialog
+    if (showAdminDialog) {
         AlertDialog(
-            onDismissRequest = { showStrictDialog = false },
-            title = { Text("Lock in Strict Mode?") },
+            onDismissRequest = { showAdminDialog = false },
+            title = { Text("Enable Admin Protection?") },
             text = {
                 Column {
                     Text(
-                        text = "Warning: Strict Mode will freeze your blocked app settings for the chosen duration. You will NOT be able to disable rules from inside the app.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "⚠️ Warning: Admin Protection will:",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "• Freeze all Admin-mode block schedules — no edits, no deletes\n" +
+                                "• Block access to device Settings to prevent uninstalling Unhooked\n" +
+                                "• The ONLY way out is a QR code or passphrase generated per block",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Duration: 3 Hours",
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
+                        text = "You'll generate an emergency unlock key when you create each Admin-mode block.",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.enableStrictMode(3)
-                        showStrictDialog = false
+                        viewModel.setProtectionMode(ProtectionMode.ADMIN)
+                        showAdminDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     shape = PillShape
                 ) {
-                    Text("Commit for 3 Hours")
+                    Text("Enable Admin Protection")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showStrictDialog = false }) {
+                TextButton(onClick = { showAdminDialog = false }) {
                     Text("Cancel")
                 }
             }

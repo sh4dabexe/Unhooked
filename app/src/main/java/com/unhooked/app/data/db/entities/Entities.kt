@@ -35,7 +35,10 @@ data class ScheduleEntity(
     val endMinute: Int,
     val daysOfWeek: String, // Comma separated integers: "2,3,4,5,6"
     val targetPackages: String, // Comma separated package names
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val protectionMode: String = "NORMAL",
+    val pinHash: String = "",
+    val pinSalt: String = ""
 )
 
 @Entity(tableName = "focus_sessions")

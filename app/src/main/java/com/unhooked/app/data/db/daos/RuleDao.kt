@@ -37,6 +37,9 @@ interface RuleDao {
     @Query("SELECT * FROM schedules WHERE enabled = 1")
     suspend fun getActiveSchedules(): List<ScheduleEntity>
 
+    @Query("SELECT * FROM schedules WHERE id = :id LIMIT 1")
+    suspend fun getScheduleById(id: Long): ScheduleEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSchedule(schedule: ScheduleEntity): Long
 

@@ -10,8 +10,10 @@ import com.unhooked.app.domain.model.AppRuleModel
 import com.unhooked.app.domain.model.BlockReason
 import com.unhooked.app.domain.model.BlockedAttemptModel
 import com.unhooked.app.domain.model.FocusSessionModel
+import com.unhooked.app.domain.model.ProtectionMode
 import com.unhooked.app.domain.model.ScheduleModel
 import com.unhooked.app.domain.model.TimerType
+import com.unhooked.app.domain.security.EmergencyUnlockManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -22,6 +24,10 @@ class UnhookedRepository(
     private val ruleDao = database.ruleDao()
     private val sessionDao = database.sessionDao()
     private val analyticsDao = database.analyticsDao()
+    private val emergencyUnlockDao = database.emergencyUnlockDao()
+
+    /** Emergency unlock manager for Admin-mode QR/passphrase flows */
+    val emergencyUnlockManager = EmergencyUnlockManager(emergencyUnlockDao)
 
     // --- App Rules ---
     val allAppRulesFlow: Flow<List<AppRuleModel>> = ruleDao.getAllAppRulesFlow().map { list ->
@@ -57,8 +63,18 @@ class UnhookedRepository(
         return ruleDao.insertSchedule(schedule.toEntity())
     }
 
+    suspend fun updateSchedule(schedule: ScheduleModel) {
+        ruleDao.updateSchedule(schedule.toEntity())
+    }
+
     suspend fun deleteSchedule(schedule: ScheduleModel) {
         ruleDao.deleteSchedule(schedule.toEntity())
+        // Also clean up any associated emergency unlock
+        emergencyUnlockDao.deleteByScheduleId(schedule.id)
+    }
+
+    suspend fun getScheduleById(id: Long): ScheduleModel? {
+        return ruleDao.getScheduleById(id)?.toDomain()
     }
 
     // --- Focus Sessions ---
@@ -138,7 +154,10 @@ class UnhookedRepository(
         endMinute = endMinute,
         daysOfWeek = daysOfWeek.split(",").mapNotNull { it.trim().toIntOrNull() },
         targetPackages = targetPackages.split(",").map { it.trim() }.filter { it.isNotEmpty() },
-        enabled = enabled
+        enabled = enabled,
+        protectionMode = try { ProtectionMode.valueOf(protectionMode) } catch (e: Exception) { ProtectionMode.NORMAL },
+        pinHash = pinHash,
+        pinSalt = pinSalt
     )
 
     private fun ScheduleModel.toEntity() = ScheduleEntity(
@@ -150,7 +169,10 @@ class UnhookedRepository(
         endMinute = endMinute,
         daysOfWeek = daysOfWeek.joinToString(","),
         targetPackages = targetPackages.joinToString(","),
-        enabled = enabled
+        enabled = enabled,
+        protectionMode = protectionMode.name,
+        pinHash = pinHash,
+        pinSalt = pinSalt
     )
 
     private fun FocusSessionEntity.toDomain() = FocusSessionModel(

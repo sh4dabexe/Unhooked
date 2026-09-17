@@ -25,6 +25,14 @@ sealed class Screen(
     object AntiBypass : Screen("anti_bypass", "Anti-Bypass Protection", Icons.Rounded.Security)
     object Onboarding : Screen("onboarding", "Welcome")
 
+    // Emergency unlock screens
+    object QrScanner : Screen("qr_scanner/{scheduleId}", "QR Scanner") {
+        fun createRoute(scheduleId: Long) = "qr_scanner/$scheduleId"
+    }
+    object PassphraseEntry : Screen("passphrase_entry/{scheduleId}", "Passphrase Entry") {
+        fun createRoute(scheduleId: Long) = "passphrase_entry/$scheduleId"
+    }
+
     companion object {
         val bottomNavItems = listOf(Home, Focus, Block, Insights, Settings)
     }

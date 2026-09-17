@@ -5,10 +5,12 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.unhooked.app.data.db.daos.AnalyticsDao
+import com.unhooked.app.data.db.daos.EmergencyUnlockDao
 import com.unhooked.app.data.db.daos.RuleDao
 import com.unhooked.app.data.db.daos.SessionDao
 import com.unhooked.app.data.db.entities.AppRuleEntity
 import com.unhooked.app.data.db.entities.BlockedAttemptEntity
+import com.unhooked.app.data.db.entities.EmergencyUnlockEntity
 import com.unhooked.app.data.db.entities.FocusSessionEntity
 import com.unhooked.app.data.db.entities.ScheduleEntity
 import com.unhooked.app.data.db.entities.WebsiteRuleEntity
@@ -19,9 +21,10 @@ import com.unhooked.app.data.db.entities.WebsiteRuleEntity
         WebsiteRuleEntity::class,
         ScheduleEntity::class,
         FocusSessionEntity::class,
-        BlockedAttemptEntity::class
+        BlockedAttemptEntity::class,
+        EmergencyUnlockEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -29,6 +32,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun ruleDao(): RuleDao
     abstract fun sessionDao(): SessionDao
     abstract fun analyticsDao(): AnalyticsDao
+    abstract fun emergencyUnlockDao(): EmergencyUnlockDao
 
     companion object {
         @Volatile

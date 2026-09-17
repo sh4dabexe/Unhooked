@@ -1,11 +1,15 @@
 package com.unhooked.app.ui.settings
 
 import android.app.Application
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.unhooked.app.UnhookedApp
 import com.unhooked.app.domain.model.ProtectionMode
 import com.unhooked.app.domain.security.SecurityUtil
+import com.unhooked.app.system.deviceadmin.UnhookedAdminReceiver
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,13 +17,13 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
-    val userName: String = "Tanim",
+    val userName: String = "Friend",
     val protectionMode: ProtectionMode = ProtectionMode.NORMAL,
     val overallLimitMinutes: Int = 180,
-    val isStrictActive: Boolean = false,
-    val strictUntilMs: Long = 0L,
+    val isAdminActive: Boolean = false,
     val hasPasswordSet: Boolean = false,
-    val isDarkMode: Boolean = false
+    val isDarkMode: Boolean = false,
+    val isDeviceAdminGranted: Boolean = false
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -37,23 +41,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         viewModelScope.launch {
             repository.preferences.protectionModeFlow.collectLatest { mode ->
-                _uiState.value = _uiState.value.copy(protectionMode = mode)
+                _uiState.value = _uiState.value.copy(
+                    protectionMode = mode,
+                    isAdminActive = mode == ProtectionMode.ADMIN && isDeviceAdminEnabled()
+                )
             }
         }
 
         viewModelScope.launch {
             repository.preferences.overallLimitMinFlow.collectLatest { limit ->
                 _uiState.value = _uiState.value.copy(overallLimitMinutes = limit)
-            }
-        }
-
-        viewModelScope.launch {
-            repository.preferences.strictUntilMsFlow.collectLatest { untilMs ->
-                val now = System.currentTimeMillis()
-                _uiState.value = _uiState.value.copy(
-                    strictUntilMs = untilMs,
-                    isStrictActive = untilMs > now
-                )
             }
         }
 
@@ -67,6 +64,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _uiState.value = _uiState.value.copy(isDarkMode = isDark)
             }
         }
+
+        refreshDeviceAdminState()
+    }
+
+    fun refreshDeviceAdminState() {
+        val granted = isDeviceAdminEnabled()
+        _uiState.value = _uiState.value.copy(
+            isDeviceAdminGranted = granted,
+            isAdminActive = _uiState.value.protectionMode == ProtectionMode.ADMIN && granted
+        )
     }
 
     fun setProtectionMode(mode: ProtectionMode) {
@@ -96,18 +103,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun enableStrictMode(durationHours: Int) {
-        viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            val untilMs = now + (durationHours * 3600_000L)
-            repository.preferences.setStrictUntilMs(untilMs)
-            repository.preferences.setProtectionMode(ProtectionMode.STRICT)
-        }
-    }
-
     fun toggleDarkMode(enabled: Boolean) {
         viewModelScope.launch {
             repository.preferences.setDarkMode(enabled)
         }
+    }
+
+    private fun isDeviceAdminEnabled(): Boolean {
+        val context = getApplication<Application>()
+        val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+            ?: return false
+        val component = ComponentName(context, UnhookedAdminReceiver::class.java)
+        return dpm.isAdminActive(component)
     }
 }

@@ -78,6 +78,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
 
+    // ZXing QR Code generation & scanning
+    implementation(libs.zxing.android.embedded)
+    implementation(libs.zxing.core)
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
